@@ -1,0 +1,63 @@
+name: "PR Ephemeral Environment Automation"
+
+# Triggers automatically on PRs, but also allows manual button-click triggers with choices
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+  workflow_dispatch:
+    inputs:
+      snapshot_type:
+        description: 'Choose snapshot targeting mode'
+        required: true
+        default: 'LATEST'
+        type: choice
+        options:
+          - LATEST
+          - CUSTOM
+      custom_snapshot_id:
+        description: 'If CUSTOM chosen, provide Snapshot ID/ARN'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  ephemeral-db:
+    name: "Manage Sandbox Database Lift"
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: "us-east-1"
+      # Fallbacks allow handling either an automated PR trigger or a manual UI dispatch trigger
+      TF_VAR_pr_number: ${{ github.event.number || 'manual' }}
+      TF_VAR_snapshot_selection_type: ${{ github.event.inputs.snapshot_type || 'LATEST' }}
+      TF_VAR_custom_snapshot_identifier: ${{ github.event.inputs.custom_snapshot_id || '' }}
+
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+
+      - name: Install and Setup HashiCorp Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Initialize Core Platform Components
+        run: terraform init
+
+      # STEP A: Executed when a PR is opened or manual run requested (and action isn't closed)
+      - name: Provision Ephemeral Sandbox Instance
+        if: github.event.action != 'closed'
+        run: |
+          ENV_ID=${{ github.event.number || 'manual-run' }}
+          terraform workspace select pr-$ENV_ID || terraform workspace new pr-$ENV_ID
+          terraform apply -auto-approve
+
+      # STEP B: Executed automatically when a PR is merged or closed
+      - name: Destroy and Clean Ephemeral Sandbox Instance
+        if: github.event.action == 'closed'
+        run: |
+          terraform workspace select pr-${{ github.event.number }}
+          terraform destroy -auto-approve
+          terraform workspace select default
+          terraform workspace delete pr-${{ github.event.number }}
