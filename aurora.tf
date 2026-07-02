@@ -1,26 +1,29 @@
-# 1. Ephemeral Cluster Core Restored using Conditional Snapshot Identification Logic
+# aurora.tf
+# 1. Ephemeral Cluster Restored directly from your Manual Input Variable
 resource "aws_rds_cluster" "ephemeral_cluster" {
-  cluster_identifier   = "pr-${var.pr_number}-aurora-sandbox"
-  engine               = "aurora-mysql"
-  engine_version       = "8.0"
-  db_subnet_group_name = aws_db_subnet_group.ephemeral_subnet_group.name
+  cluster_identifier   = var.db_cluster_name
+  engine               = "aurora-postgresql"
+  port                 = 5432   # Default PostgreSQL network port allocation
+  
+  db_subnet_group_name   = aws_db_subnet_group.ephemeral_subnet_group.name
   vpc_security_group_ids = [aws_security_group.ephemeral_sg.id]
   
-  # Conditional Choice Logic: Evaluates your variable configuration input
-  snapshot_identifier  = var.snapshot_selection_type == "CUSTOM" ? var.custom_snapshot_identifier : data.aws_db_snapshot.latest_sanitized_snapshot.id
+  # Maps straight to your manual terminal input parameter string
+  snapshot_identifier  = var.target_snapshot_identifier
   
   skip_final_snapshot  = true 
 
   tags = {
-    Name         = "pr-${var.pr_number}-aurora-cluster"
+    Name         = var.db_cluster_name
     Environment  = "ephemeral"
     PullRequest  = var.pr_number
     AutoTeardown = "true"
   }
 }
 
+# 2. Ephemeral DB Compute Node Instance
 resource "aws_rds_cluster_instance" "ephemeral_instance" {
-  identifier          = "pr-${var.pr_number}-instance"
+  identifier          = "${var.db_cluster_name}-instance"
   cluster_identifier  = aws_rds_cluster.ephemeral_cluster.id
   instance_class      = var.db_instance_class
   engine              = aws_rds_cluster.ephemeral_cluster.engine

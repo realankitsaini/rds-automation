@@ -1,23 +1,18 @@
 name: "PR Ephemeral Environment Automation"
 
-# Triggers automatically on PRs, but also allows manual button-click triggers with choices
 on:
   pull_request:
     types: [opened, synchronize, closed]
   workflow_dispatch:
     inputs:
-      snapshot_type:
-        description: 'Choose snapshot targeting mode'
+      custom_cluster_name:
+        description: 'Enter targeted Name for manual sandbox deployment'
         required: true
-        default: 'LATEST'
-        type: choice
-        options:
-          - LATEST
-          - CUSTOM
+        default: 'manual-aurora-sandbox'
+        type: string
       custom_snapshot_id:
-        description: 'If CUSTOM chosen, provide Snapshot ID/ARN'
-        required: false
-        default: ''
+        description: 'Provide manual Snapshot Identifier or ARN to clone from'
+        required: true
         type: string
 
 jobs:
@@ -28,10 +23,10 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: "us-east-1"
-      # Fallbacks allow handling either an automated PR trigger or a manual UI dispatch trigger
       TF_VAR_pr_number: ${{ github.event.number || 'manual' }}
-      TF_VAR_snapshot_selection_type: ${{ github.event.inputs.snapshot_type || 'LATEST' }}
-      TF_VAR_custom_snapshot_identifier: ${{ github.event.inputs.custom_snapshot_id || '' }}
+      # Handles mappings dynamically depending on manual UI trigger vs PR trigger
+      TF_VAR_db_cluster_name: ${{ github.event.inputs.custom_cluster_name || format('pr-{0}-cluster', github.event.number) }}
+      TF_VAR_target_snapshot_identifier: ${{ github.event.inputs.custom_snapshot_id || 'production-sanitized-snapshot-default' }}
 
     steps:
       - name: Checkout Code Base
@@ -45,7 +40,7 @@ jobs:
       - name: Initialize Core Platform Components
         run: terraform init
 
-      # STEP A: Executed when a PR is opened or manual run requested (and action isn't closed)
+      # STEP A: Provisions the infrastructure if PR is opened or run is dispatched manually
       - name: Provision Ephemeral Sandbox Instance
         if: github.event.action != 'closed'
         run: |
@@ -53,7 +48,7 @@ jobs:
           terraform workspace select pr-$ENV_ID || terraform workspace new pr-$ENV_ID
           terraform apply -auto-approve
 
-      # STEP B: Executed automatically when a PR is merged or closed
+      # STEP B: Triggers cleanup automatically when a PR is merged or closed
       - name: Destroy and Clean Ephemeral Sandbox Instance
         if: github.event.action == 'closed'
         run: |

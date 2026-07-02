@@ -6,38 +6,21 @@ variable "aws_region" {
 
 variable "pr_number" {
   type        = string
-  description = "The Pull Request ID passed dynamically from the GitHub Actions runner context"
+  description = "The Pull Request ID used to uniquely tag and isolate this ephemeral database resource"
 }
 
-variable "production_cluster_identifier" {
+variable "db_cluster_name" {
   type        = string
-  default     = "production-aurora-cluster"
-  description = "The identifier of the live production cluster used to locate baseline snapshots"
+  description = "Enter the name you want to assign to this new sandbox cluster"
+}
+
+variable "target_snapshot_identifier" {
+  type        = string
+  description = "Enter the exact AWS Snapshot Identifier or ARN you want to clone from"
 }
 
 variable "db_instance_class" {
   type        = string
   default     = "db.t4g.medium"
-  description = "The cost-efficient compute tier size applied to short-lived ephemeral sandboxes"
-}
-
-# =========================================================================
-# NEW ENHANCED SNAPSHOT SELECTION VARIABLES
-# =========================================================================
-
-variable "snapshot_selection_type" {
-  type        = string
-  default     = "LATEST"
-  description = "Set to 'LATEST' to use the automatic most-recent snapshot, or 'CUSTOM' to provide a specific snapshot identifier"
-
-  validation {
-    condition     = contains(["LATEST", "CUSTOM"], var.snapshot_selection_type)
-    error_message = "The snapshot_selection_type variable must be set to either 'LATEST' or 'CUSTOM'."
-  }
-}
-
-variable "custom_snapshot_identifier" {
-  type        = string
-  default     = ""
-  description = "The specific AWS Snapshot ID or ARN you want to clone from (Only required if snapshot_selection_type is set to 'CUSTOM')"
+  description = "The compute tier size applied to short-lived ephemeral sandboxes"
 }

@@ -5,5 +5,5 @@ output "sandbox_cluster_endpoint" {
 
 output "snapshot_source_utilized" {
   value       = aws_rds_cluster.ephemeral_cluster.snapshot_identifier
-  description = "The exact snapshot ID that was used to provision this sandbox run"
+  description = "The exact snapshot identifier provided manually for restoration"
 }
